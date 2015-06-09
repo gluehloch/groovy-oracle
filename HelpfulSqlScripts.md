@@ -1,0 +1,193 @@
+
+
+# Helpful Scripts #
+
+## Drop all user tables ##
+The following script drops all user tables. So be careful!
+```
+DECLARE
+BEGIN
+  FOR i IN (SELECT table_name FROM user_tables)
+  LOOP
+    EXECUTE IMMEDIATE 'DROP TABLE ' || i.table_name || ' CASCADE CONSTRAINTS';
+  END LOOP;
+END;
+```
+
+## Database locks ##
+This script shows all database locks, the associated db/os users and other informations.
+```
+ttitle "Lock Listing"
+set linesize 150
+set echo off
+col oruser format a16 heading "Oracle Username"
+col osuser format a13 heading "O/S Username"
+col obj format a20 heading "Locked Object"
+col ss heading "SID/Ser#" format a12
+col time heading "Logon Date/Time" format a19
+col rs heading "RBS|Name" format a4
+col unix heading "O/S|Process" format a9
+col computer heading "Machine name|of Locker" format a20
+set linesize 120
+select     owner||'.'||object_name obj
+   ,oracle_username||' ('||s.status||')' oruser
+   ,os_user_name osuser
+   ,machine computer
+   ,l.process unix
+   ,''''||s.sid||','||s.serial#||'''' ss
+   ,r.name rs
+   ,to_char(s.logon_time,'yyyy/mm/dd hh24:mi:ss') time
+from       v$locked_object l
+   ,dba_objects o
+   ,v$session s
+   ,v$transaction t
+   ,v$rollname r
+where l.object_id = o.object_id
+  and s.sid=l.session_id
+  and s.taddr=t.addr
+  and t.xidusn=r.usn
+order by osuser, ss, obj
+/
+ttitle off
+set linesize 132
+```
+
+## Session killer ##
+The following script kills all database sessions. You should modify the filter for a more selective behavior. Don´t forget to uncomment one of the lines.
+```
+set serveroutput on;
+
+DECLARE
+  v_sql VARCHAR2(1000);
+  
+  CURSOR v_cursor IS
+    SELECT SID as sid, SERIAL# as serial, STATUS, SERVER, OSUSER
+    FROM V$SESSION
+    WHERE OSUSER NOT IN ('USER_1', 'USER_2');
+   --'ta2tfsbuild';
+BEGIN
+  FOR row IN v_cursor
+  LOOP
+  	DBMS_OUTPUT.PUT_LINE('SID: ' || row.sid || ', serial: ' || row.serial || ', os_user: ' || row.osuser);
+  	v_sql := 'ALTER SYSTEM KILL SESSION '''
+	  || row.sid || ',' || row.serial || '''';
+	--DBMS_OUTPUT.PUT_LINE(v_sql);
+	--execute immediate v_sql;
+  END LOOP;
+END;
+/
+```
+
+## SQL Loader ##
+
+### Solution 1 ###
+The following script generates a SQL\*Loader configuration. The code snippet needs two input parameters: Table name and the potential Date format.
+```
+set echo off ver off feed off pages 0 
+accept tname prompt 'Enter Name of Table: ' 
+accept dformat prompt 'Enter Format to Use for Date Columns: ' 
+
+spool &tname..ctl
+
+select 'LOAD DATA'|| chr (10) ||
+       'INFILE ''' || lower (table_name) || '.dat''' || chr (10) ||
+       'INTO TABLE '|| table_name || chr (10)||
+       'FIELDS TERMINATED BY '','''|| chr (10)||
+       'TRAILING NULLCOLS' || chr (10) || '(' 
+from   user_tables
+where  table_name = upper ('&tname');
+
+select decode (rownum, 1, '   ', ' , ') ||
+       rpad (column_name, 33, ' ')      ||
+       decode (data_type,
+           'VARCHAR2', 'CHAR NULLIF ('||column_name||'=BLANKS)', 
+           'FLOAT',    'DECIMAL EXTERNAL NULLIF('||column_name||'=BLANKS)',
+           'NUMBER',   decode (data_precision, 0, 
+                       'INTEGER EXTERNAL NULLIF ('||column_name||
+                       '=BLANKS)', decode (data_scale, 0, sqlplus 
+                       'INTEGER EXTERNAL NULLIF ('||
+                       column_name||'=BLANKS)', 
+                       'DECIMAL EXTERNAL NULLIF ('||
+                       column_name||'=BLANKS)')), 
+           'DATE',     'DATE "&dformat" NULLIF ('||column_name||'=BLANKS)', null) 
+from   user_tab_columns 
+where  table_name = upper ('&tname') 
+order  by column_id;
+
+select ')'  
+from dual;
+spool off
+```
+
+### Solution 2 ###
+```
+set serveroutput on size unlimited;
+
+DECLARE
+  v_table_name VARCHAR2(30)  := 'CPTASKLIST';
+  v_dformat    VARCHAR2(16)  := 'YYYYMMDDHH24MMSS';
+  v_text       VARCHAR2(200);
+  
+  C_TOKEN      CONSTANT VARCHAR2(1) := '|';
+BEGIN
+  SELECT
+    'LOAD DATA'|| chr (10) ||
+    'INFILE ''' || lower (v_table_name) || '.dat''' || chr (10) ||
+    'INTO TABLE '|| V_TABLE_NAME || CHR (10)||
+    'FIELDS TERMINATED BY ''' || C_TOKEN || ''''|| chr (10)||
+    'TRAILING NULLCOLS' || chr (10) || '('
+  INTO
+    v_text
+  FROM 
+    user_tables
+  WHERE
+    table_name = upper (v_table_name);
+
+  dbms_output.put_line(v_text);
+
+  FOR v_column IN
+  (
+    select
+      (
+        DECODE(ROWNUM, 1, '   ', ' , ')
+          || RPAD(COLUMN_NAME, 33, ' ')
+          || DECODE(data_type,
+                 'VARCHAR2', 'CHAR NULLIF ('||COLUMN_NAME||'=BLANKS)', 
+                 'FLOAT',    'DECIMAL EXTERNAL NULLIF('||column_name||'=BLANKS)',
+                 'NUMBER',   decode(data_precision, 0, 
+                             'INTEGER EXTERNAL NULLIF ('||column_name||
+                             '=BLANKS)', decode (data_scale, 0,
+                             'INTEGER EXTERNAL NULLIF ('||
+                             column_name||'=BLANKS)', 
+                             'DECIMAL EXTERNAL NULLIF ('||
+                             COLUMN_NAME||'=BLANKS)')), 
+                 'DATE',     'DATE "' || V_DFORMAT || '" NULLIF ('||COLUMN_NAME||'=BLANKS)', null)
+      ) as ctext 
+    from
+       user_tab_columns 
+    where 
+       table_name = upper (v_table_name) 
+    order by
+       column_id
+  )
+  LOOP
+    dbms_output.put_line(v_column.ctext);
+  END LOOP;
+
+  dbms_output.put_line(')');
+
+END;
+```
+
+## Find package modifications ##
+```
+SELECT
+  OBJECT_NAME,
+  TO_CHAR(CREATED, 'DD-Mon-RR HH24:MI') CREATE_TIME,
+  TO_CHAR(LAST_DDL_TIME, 'DD-Mon-RR HH24:MI') MOD_TIME,
+  STATUS
+FROM
+  USER_OBJECTS
+WHERE
+  LAST_DDL_TIME > '&CHECK_FROM_DATE';
+```

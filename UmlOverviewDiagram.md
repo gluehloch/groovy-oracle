@@ -1,0 +1,6 @@
+
+
+# Class OracleTable #
+Here you see a diagram of class OracleTable and it´s components like PrimaryKey, ForeignKey, Constraint and OracleColumn.
+
+![http://groovy-oracle.googlecode.com/svn/groovy-oracle/branches/0.5.0-release/src/site/images/OracleTable.png](http://groovy-oracle.googlecode.com/svn/groovy-oracle/branches/0.5.0-release/src/site/images/OracleTable.png)

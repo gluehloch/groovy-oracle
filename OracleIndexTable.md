@@ -1,0 +1,12 @@
+# Introduction #
+**TODO:** My explanation. Is there a Groovy way to acces PL/SQL index table types?
+
+At first, some links to the topic:
+
+http://download-west.oracle.com/docs/cd/B10501_01/java.920/a96654/oci_func.htm#1017512
+
+http://asktom.oracle.com/pls/asktom/f?p=100:11:0::::P11_QUESTION_ID:3696816290928
+
+http://stackoverflow.com/questions/457933/creating-package-level-associative-array-in-java
+
+http://www.orafaq.com/forum/t/139991/0/

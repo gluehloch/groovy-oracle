@@ -1,0 +1,14 @@
+
+
+# Release Notes #
+
+## grooocle-0.5.0 (under construction) ##
+  * TODO: Decoupling of some Oracle dependencies. MySQL support would be nice.
+  * TODO: Some performance enhancements for the meta data support.
+  * Fix for the class `SqlFileExporter`. Now the `dateFormat` property is also supported for user defined queries.
+
+## grooocle-0.4.0 ##
+  * Package renaming: `de.gluehloch.groovy.oracle` becomes `de.awtools.grooocle`
+
+## groovy-oracle-0.3.0 ##
+  * The old and first offical release.
